@@ -61,8 +61,8 @@ type CrossrefMetadataIndex struct {
 }
 
 type CrossrefPos struct {
-	fileId int64
-	seek   int64
+	fileId int
+	// seek   int64 // seek not available in gzip
 }
 
 type CrossrefMetadataManager struct {
@@ -161,7 +161,7 @@ func (mgr *CrossrefMetadataManager) generatePartialCrossrefMetadataIndex(routine
 
 		fileNameWithoutExt := strings.ReplaceAll(fileName, ".json.gz", "")
 
-		fileId, err := strconv.ParseInt(fileNameWithoutExt, 10, 64)
+		fileId, err := strconv.Atoi(fileNameWithoutExt)
 		if err != nil {
 			errors <- err
 		}
@@ -190,7 +190,7 @@ func (mgr *CrossrefMetadataManager) generatePartialCrossrefMetadataIndex(routine
 			if elm.DOI != "" {
 				index = append(index, CrossrefMetadataIndex{
 					doi: elm.DOI,
-					pos: CrossrefPos{fileId: fileId, seek: 0}, // seek not available in gzip
+					pos: CrossrefPos{fileId: fileId}, // seek not available in gzip
 				})
 			}
 		}
@@ -265,16 +265,19 @@ func (mgr *CrossrefMetadataManager) readCrossrefMetadataIndex() error {
 
 	for fileScanner.Scan() {
 		line := fileScanner.Text()
+		line = strings.ReplaceAll(line, "##", "#") // TODO investigate (use another separator than #)
 		parts := strings.Split(line, indexSeparator)
 		if len(parts) != 2 {
-			return fmt.Errorf("expected 2 parts in line %s, got %s", line, parts)
+			fmt.Printf("expected 2 parts in '%s', got '%s'\n", line, parts)
+			//ignore error
+		} else {
+			doi := parts[0]
+			fileId, err := strconv.Atoi(parts[1])
+			if err != nil {
+				return err
+			}
+			mgr.index[doi] = CrossrefPos{fileId: fileId} //seek not available in gzip
 		}
-		doi := parts[0]
-		fileId, err := strconv.ParseInt(parts[1], 10, 64)
-		if err != nil {
-			return err
-		}
-		mgr.index[doi] = CrossrefPos{fileId: fileId, seek: 0} //seek not available in gzip
 	}
 
 	return nil
