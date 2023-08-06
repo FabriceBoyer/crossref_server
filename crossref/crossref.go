@@ -12,6 +12,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/dustin/go-humanize"
 )
 
 const indexFileName = "crossref-metadata-index.txt"
@@ -103,22 +105,33 @@ func (mgr *CrossrefMetadataManager) generateCrossrefMetadataIndex() error {
 	}
 
 	results := make(chan *[]CrossrefMetadataIndex)
+	errors := make(chan error)
 	routineCount := runtime.NumCPU()
 	fileCount := len(filesToBeProcessed)
-	fileBlockSize := fileCount / routineCount
+	fileBlockSize := fileCount/routineCount + 1
+
 	var wg sync.WaitGroup
 	wg.Add(routineCount)
 
 	// parallelize work
 	fmt.Printf("%d routines processing %d files in blocks of %d\n", routineCount, fileCount, fileBlockSize)
 	for i := 0; i < routineCount; i++ {
-		go mgr.generatePartialCrossrefMetadataIndex(filesToBeProcessed[i*fileBlockSize:utils.Min(fileCount, (i+1)*fileBlockSize)], results)
+		start := i * fileBlockSize
+		end := utils.Min(fileCount, (i+1)*fileBlockSize-1)
+		fmt.Printf("Starting go routine %d from %d to %d\n", i, start, end)
+		go mgr.generatePartialCrossrefMetadataIndex(i, &wg, filesToBeProcessed[start:end], results, errors)
 	}
-	wg.Wait()
-	close(results)
+	go func() {
+		wg.Wait()
+		close(results)
+		close(errors)
+	}()
 
 	for result := range results {
 		index = append(index, *result...)
+	}
+	for err := range errors {
+		return err
 	}
 
 	fmt.Print("Writing index file\n")
@@ -137,7 +150,12 @@ func (mgr *CrossrefMetadataManager) generateCrossrefMetadataIndex() error {
 	return nil
 }
 
-func (mgr *CrossrefMetadataManager) generatePartialCrossrefMetadataIndex(files []string, results chan<- *[]CrossrefMetadataIndex) error {
+func (mgr *CrossrefMetadataManager) generatePartialCrossrefMetadataIndex(routineId int, wg *sync.WaitGroup,
+	files []string,
+	results chan<- *[]CrossrefMetadataIndex, errors chan<- error) {
+
+	defer wg.Done()
+
 	index := []CrossrefMetadataIndex{}
 	for _, fileName := range files {
 
@@ -145,18 +163,18 @@ func (mgr *CrossrefMetadataManager) generatePartialCrossrefMetadataIndex(files [
 
 		fileId, err := strconv.ParseInt(fileNameWithoutExt, 10, 64)
 		if err != nil {
-			return err
+			errors <- err
 		}
 
 		f, err := os.Open(path.Join(mgr.Root_path, fileName))
 		if err != nil {
-			return err
+			errors <- err
 		}
 		defer f.Close()
 
 		gzipReader, err := gzip.NewReader(f)
 		if err != nil {
-			return err
+			errors <- err
 		}
 		defer gzipReader.Close()
 
@@ -165,7 +183,7 @@ func (mgr *CrossrefMetadataManager) generatePartialCrossrefMetadataIndex(files [
 
 		err = d.Decode(&metaDataList)
 		if err != nil {
-			return err
+			errors <- err
 		}
 
 		for _, elm := range metaDataList.Items {
@@ -177,11 +195,10 @@ func (mgr *CrossrefMetadataManager) generatePartialCrossrefMetadataIndex(files [
 			}
 		}
 
-		// fmt.Printf("%s elements parsed, current file is %d\n", humanize.SI(float64(len(index)), ""), fileId)
 	}
+	fmt.Printf("Routine %d finished with %s elements parsed\n", routineId, humanize.SI(float64(len(index)), ""))
 
 	results <- &index
-	return nil
 }
 
 func (mgr *CrossrefMetadataManager) GetIndexedCrossrefMetadata(doi string) (*CrossrefMetadata, error) {
