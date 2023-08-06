@@ -3,7 +3,7 @@ package crossref
 import (
 	"bufio"
 	"compress/gzip"
-	"core/utils"
+	"crossref_server/utils"
 	"encoding/json"
 	"fmt"
 	"os"
