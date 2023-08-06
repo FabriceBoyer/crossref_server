@@ -35,9 +35,9 @@ func handleRequests() {
 }
 
 func handlePage(w http.ResponseWriter, r *http.Request) error {
-	id := r.URL.Query().Get("doi")
+	doi := r.URL.Query().Get("doi")
 
-	elm, err := mgr.GetIndexedCrossrefMetadata(id)
+	elm, err := mgr.GetIndexedCrossrefMetadata(doi)
 	if err != nil {
 		return err
 	}

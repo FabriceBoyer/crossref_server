@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"os"
 	"path"
+	"runtime"
 	"strconv"
 	"strings"
-
-	"github.com/dustin/go-humanize"
+	"sync"
 )
 
 const indexFileName = "crossref-metadata-index.txt"
@@ -94,8 +94,53 @@ func (mgr *CrossrefMetadataManager) generateCrossrefMetadataIndex() error {
 		return err
 	}
 
+	filesToBeProcessed := []string{}
 	for _, file := range files {
 		fileName := file.Name()
+		if strings.HasSuffix(fileName, ".json.gz") {
+			filesToBeProcessed = append(filesToBeProcessed, fileName)
+		}
+	}
+
+	results := make(chan *[]CrossrefMetadataIndex)
+	routineCount := runtime.NumCPU()
+	fileCount := len(filesToBeProcessed)
+	fileBlockSize := fileCount / routineCount
+	var wg sync.WaitGroup
+	wg.Add(routineCount)
+
+	// parallelize work
+	fmt.Printf("%d routines processing %d files in blocks of %d\n", routineCount, fileCount, fileBlockSize)
+	for i := 0; i < routineCount; i++ {
+		go mgr.generatePartialCrossrefMetadataIndex(filesToBeProcessed[i*fileBlockSize:utils.Min(fileCount, (i+1)*fileBlockSize)], results)
+	}
+	wg.Wait()
+	close(results)
+
+	for result := range results {
+		index = append(index, *result...)
+	}
+
+	fmt.Print("Writing index file\n")
+	index_file, err := os.Create(mgr.getIndexFileName())
+	if err != nil {
+		return err
+	}
+	defer index_file.Close()
+
+	for _, elm := range index {
+		index_file.WriteString(fmt.Sprintf("%s%s%d\n",
+			elm.doi, indexSeparator,
+			elm.pos.fileId))
+	}
+
+	return nil
+}
+
+func (mgr *CrossrefMetadataManager) generatePartialCrossrefMetadataIndex(files []string, results chan<- *[]CrossrefMetadataIndex) error {
+	index := []CrossrefMetadataIndex{}
+	for _, fileName := range files {
+
 		fileNameWithoutExt := strings.ReplaceAll(fileName, ".json.gz", "")
 
 		fileId, err := strconv.ParseInt(fileNameWithoutExt, 10, 64)
@@ -132,23 +177,10 @@ func (mgr *CrossrefMetadataManager) generateCrossrefMetadataIndex() error {
 			}
 		}
 
-		fmt.Printf("%s elements parsed, current file is %d\n", humanize.SI(float64(len(index)), ""), fileId)
+		// fmt.Printf("%s elements parsed, current file is %d\n", humanize.SI(float64(len(index)), ""), fileId)
 	}
 
-	fmt.Print("Writing index file\n")
-	index_file, err := os.Create(mgr.getIndexFileName())
-	if err != nil {
-		return err
-	}
-	defer index_file.Close()
-
-	for _, elm := range index {
-		index_file.WriteString(fmt.Sprintf("%s%s%d%s%d\n",
-			elm.doi, indexSeparator,
-			elm.pos.fileId, indexSeparator,
-			elm.pos.seek))
-	}
-
+	results <- &index
 	return nil
 }
 
@@ -194,16 +226,17 @@ func (mgr *CrossrefMetadataManager) getCrossrefMetadaFromPos(pos CrossrefPos, do
 		}
 	}
 
-	return nil, fmt.Errorf("doi %s with seek %d not found in file %d", doi, pos.seek, pos.fileId)
+	return nil, fmt.Errorf("doi %s not found in file %d", doi, pos.fileId)
 }
 
 func (mgr *CrossrefMetadataManager) getIndexFileName() string {
-	return path.Join(mgr.Root_path, "..", indexFileName)
+	return path.Join(mgr.Root_path, indexFileName)
 }
 
 func (mgr *CrossrefMetadataManager) readCrossrefMetadataIndex() error {
 	fmt.Print("Reading index file\n")
 	mgr.index = make(map[string]CrossrefPos)
+
 	readFile, err := os.Open(mgr.getIndexFileName())
 	if err != nil {
 		return err
@@ -216,19 +249,15 @@ func (mgr *CrossrefMetadataManager) readCrossrefMetadataIndex() error {
 	for fileScanner.Scan() {
 		line := fileScanner.Text()
 		parts := strings.Split(line, indexSeparator)
-		if len(parts) != 3 {
-			return fmt.Errorf("expected 3 parts in line %s, got %s", line, parts)
+		if len(parts) != 2 {
+			return fmt.Errorf("expected 2 parts in line %s, got %s", line, parts)
 		}
 		doi := parts[0]
 		fileId, err := strconv.ParseInt(parts[1], 10, 64)
 		if err != nil {
 			return err
 		}
-		seek, err := strconv.ParseInt(parts[2], 10, 64)
-		if err != nil {
-			return err
-		}
-		mgr.index[doi] = CrossrefPos{fileId: fileId, seek: seek}
+		mgr.index[doi] = CrossrefPos{fileId: fileId, seek: 0} //seek not available in gzip
 	}
 
 	return nil

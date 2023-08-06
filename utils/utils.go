@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/pkg/errors"
+	"golang.org/x/exp/constraints"
 )
 
 type statusError int
@@ -33,4 +34,11 @@ func GetEnv(key, fallback string) string {
 		return value
 	}
 	return fallback
+}
+
+func Min[T constraints.Ordered](a, b T) T {
+	if a < b {
+		return a
+	}
+	return b
 }
