@@ -17,7 +17,7 @@ import (
 )
 
 const indexFileName = "crossref-metadata-index.txt"
-const indexSeparator = "#"
+const indexSeparator = "|"
 
 type CrossrefAuthor struct {
 	Given  string `json:"given"`
@@ -229,7 +229,8 @@ func (mgr *CrossrefMetadataManager) getCrossrefMetadaFromPos(pos CrossrefPos, do
 	}
 	defer gzipReader.Close()
 
-	//gzip seek not available
+	//seek not available in gzip
+
 	d := json.NewDecoder(gzipReader)
 	metaDataList := &CrossrefMetadataList{}
 	err = d.Decode(metaDataList)
@@ -243,7 +244,7 @@ func (mgr *CrossrefMetadataManager) getCrossrefMetadaFromPos(pos CrossrefPos, do
 		}
 	}
 
-	return nil, fmt.Errorf("doi %s not found in file %d", doi, pos.fileId)
+	return nil, fmt.Errorf("DOI %s not found in file %d", doi, pos.fileId)
 }
 
 func (mgr *CrossrefMetadataManager) getIndexFileName() string {
@@ -265,7 +266,6 @@ func (mgr *CrossrefMetadataManager) readCrossrefMetadataIndex() error {
 
 	for fileScanner.Scan() {
 		line := fileScanner.Text()
-		line = strings.ReplaceAll(line, "##", "#") // TODO investigate (use another separator than #)
 		parts := strings.Split(line, indexSeparator)
 		if len(parts) != 2 {
 			fmt.Printf("expected 2 parts in '%s', got '%s'\n", line, parts)
