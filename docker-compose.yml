@@ -1,0 +1,15 @@
+version: '3.7'
+
+services:
+
+    crossref_server:
+        build: .
+        container_name: crossref_server
+        restart: unless-stopped
+        ports:
+            - 9098:9098
+        environment:
+            - DUMP_PATH=/dump
+        volumes:
+            - $DUMP_PATH:/dump
+
