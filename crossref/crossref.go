@@ -1,7 +1,6 @@
 package crossref
 
 import (
-	"bufio"
 	"compress/gzip"
 	"crossref_server/utils"
 	"encoding/json"
@@ -14,10 +13,8 @@ import (
 	"sync"
 
 	"github.com/dustin/go-humanize"
+	"github.com/steveyen/gkvlite"
 )
-
-const indexFileName = "crossref-metadata-index.txt"
-const indexSeparator = "|"
 
 type CrossrefAuthor struct {
 	Given  string `json:"given"`
@@ -56,18 +53,15 @@ func (m *CrossrefMetadata) String() string {
 }
 
 type CrossrefMetadataIndex struct {
-	doi string
-	pos CrossrefPos
-}
-
-type CrossrefPos struct {
-	fileId int
-	// seek   int64 // seek not available in gzip
+	Doi    string
+	FileId int
 }
 
 type CrossrefMetadataManager struct {
-	Root_path string
-	index     map[string]CrossrefPos
+	Root_path  string
+	Store      *gkvlite.Store
+	File       *os.File
+	Collection *gkvlite.Collection
 }
 
 func (mgr *CrossrefMetadataManager) InitializeManager() error {
@@ -89,7 +83,6 @@ func (mgr *CrossrefMetadataManager) InitializeManager() error {
 
 func (mgr *CrossrefMetadataManager) generateCrossrefMetadataIndex() error {
 	fmt.Print("Generating index file\n")
-	index := []CrossrefMetadataIndex{}
 
 	files, err := os.ReadDir(mgr.Root_path)
 	if err != nil {
@@ -104,9 +97,21 @@ func (mgr *CrossrefMetadataManager) generateCrossrefMetadataIndex() error {
 		}
 	}
 
-	results := make(chan *[]CrossrefMetadataIndex)
-	errors := make(chan error)
+	fmt.Print("Writing index file\n")
+	f, err := os.Create(mgr.getIndexFileName())
+	if err != nil {
+		return err
+	}
+	s, err := gkvlite.NewStore(f)
+	if err != nil {
+		return err
+	}
+	c := s.SetCollection("crossref", nil)
+
 	routineCount := runtime.NumCPU()
+	results := make(chan *CrossrefMetadataIndex, 1e6*routineCount)
+	errors := make(chan error)
+	finish := make(chan bool)
 	fileCount := len(filesToBeProcessed)
 	fileBlockSize := fileCount/routineCount + 1
 
@@ -125,38 +130,49 @@ func (mgr *CrossrefMetadataManager) generateCrossrefMetadataIndex() error {
 		wg.Wait()
 		close(results)
 		close(errors)
+		finish <- true
 	}()
 
-	for result := range results {
-		index = append(index, *result...)
-	}
-	for err := range errors {
-		return err
+	var counter int = 0
+out:
+	for {
+		var result *CrossrefMetadataIndex
+		select {
+		case result = <-results:
+			fileIdStr := strconv.Itoa(result.FileId)
+			c.Set([]byte(result.Doi), []byte(fileIdStr))
+
+			//follow progress
+			counter++
+			if (counter % 1e6) == 0 {
+				fmt.Printf("%v entries processed\n", humanize.SI(float64(counter), ""))
+				s.Flush() // Persist all the changes to disk.
+			}
+		case err = <-errors:
+			return err
+		case <-finish:
+			break out
+		}
+
 	}
 
-	fmt.Print("Writing index file\n")
-	index_file, err := os.Create(mgr.getIndexFileName())
-	if err != nil {
-		return err
-	}
-	defer index_file.Close()
-
-	for _, elm := range index {
-		index_file.WriteString(fmt.Sprintf("%s%s%d\n",
-			elm.doi, indexSeparator,
-			elm.pos.fileId))
-	}
+	//Will be run when both channels closed (after waitGroup)
+	fmt.Print("Finished writing index file\n")
+	s.Flush()
+	f.Sync()
+	f.Close()
 
 	return nil
 }
 
 func (mgr *CrossrefMetadataManager) generatePartialCrossrefMetadataIndex(routineId int, wg *sync.WaitGroup,
 	files []string,
-	results chan<- *[]CrossrefMetadataIndex, errors chan<- error) {
+	results chan<- *CrossrefMetadataIndex, errors chan<- error) {
 
 	defer wg.Done()
 
-	index := []CrossrefMetadataIndex{}
+	var counter int = 0
+
 	for _, fileName := range files {
 
 		fileNameWithoutExt := strings.ReplaceAll(fileName, ".json.gz", "")
@@ -188,34 +204,44 @@ func (mgr *CrossrefMetadataManager) generatePartialCrossrefMetadataIndex(routine
 
 		for _, elm := range metaDataList.Items {
 			if elm.DOI != "" {
-				index = append(index, CrossrefMetadataIndex{
-					doi: elm.DOI,
-					pos: CrossrefPos{fileId: fileId}, // seek not available in gzip
-				})
+				item := CrossrefMetadataIndex{
+					Doi:    elm.DOI,
+					FileId: fileId, // seek not available in gzip
+				}
+				results <- &item
+				counter++
 			}
 		}
-
 	}
-	fmt.Printf("Routine %d finished with %s elements parsed\n", routineId, humanize.SI(float64(len(index)), ""))
 
-	results <- &index
+	fmt.Printf("Routine %d finished with %s elements parsed\n", routineId, humanize.SI(float64(counter), ""))
 }
 
 func (mgr *CrossrefMetadataManager) GetIndexedCrossrefMetadata(doi string) (*CrossrefMetadata, error) {
-	pos, found := mgr.index[doi]
-	if !found {
-		return nil, fmt.Errorf("index %s not found", doi)
+	if mgr.Collection == nil {
+		return nil, fmt.Errorf("store is not initialized")
 	}
 
-	res, err := mgr.getCrossrefMetadaFromPos(pos, doi)
+	fileIdStr, err := mgr.Collection.Get([]byte(doi))
 	if err != nil {
 		return nil, err
 	}
+
+	fileId, err := strconv.Atoi(string(fileIdStr))
+	if err != nil {
+		return nil, err
+	}
+
+	res, err := mgr.getCrossrefMetadaFromFileId(fileId, doi)
+	if err != nil {
+		return nil, err
+	}
+
 	return res, nil
 }
 
-func (mgr *CrossrefMetadataManager) getCrossrefMetadaFromPos(pos CrossrefPos, doi string) (*CrossrefMetadata, error) {
-	fileName := fmt.Sprintf("%d.json.gz", pos.fileId)
+func (mgr *CrossrefMetadataManager) getCrossrefMetadaFromFileId(fileId int, doi string) (*CrossrefMetadata, error) {
+	fileName := fmt.Sprintf("%d.json.gz", fileId)
 
 	f, err := os.Open(path.Join(mgr.Root_path, fileName))
 	if err != nil {
@@ -244,40 +270,28 @@ func (mgr *CrossrefMetadataManager) getCrossrefMetadaFromPos(pos CrossrefPos, do
 		}
 	}
 
-	return nil, fmt.Errorf("DOI %s not found in file %d", doi, pos.fileId)
+	return nil, fmt.Errorf("DOI %s not found in file %d", doi, fileId)
 }
 
 func (mgr *CrossrefMetadataManager) getIndexFileName() string {
+	const indexFileName = "crossref-metadata-index.gkvlite"
 	return path.Join(mgr.Root_path, indexFileName)
 }
 
 func (mgr *CrossrefMetadataManager) readCrossrefMetadataIndex() error {
 	fmt.Print("Reading index file\n")
-	mgr.index = make(map[string]CrossrefPos)
-
-	readFile, err := os.Open(mgr.getIndexFileName())
+	var err error
+	mgr.File, err = os.Open(mgr.getIndexFileName())
 	if err != nil {
-		return err
+		return nil
 	}
-	defer readFile.Close()
-
-	fileScanner := bufio.NewScanner(readFile)
-	fileScanner.Split(bufio.ScanLines)
-
-	for fileScanner.Scan() {
-		line := fileScanner.Text()
-		parts := strings.Split(line, indexSeparator)
-		if len(parts) != 2 {
-			fmt.Printf("expected 2 parts in '%s', got '%s'\n", line, parts)
-			//ignore error
-		} else {
-			doi := parts[0]
-			fileId, err := strconv.Atoi(parts[1])
-			if err != nil {
-				return err
-			}
-			mgr.index[doi] = CrossrefPos{fileId: fileId} //seek not available in gzip
-		}
+	mgr.Store, err = gkvlite.NewStore(mgr.File)
+	if err != nil {
+		return nil
+	}
+	mgr.Collection = mgr.Store.GetCollection("crossref")
+	if mgr.Collection == nil {
+		return fmt.Errorf("collection crossref not found")
 	}
 
 	return nil
