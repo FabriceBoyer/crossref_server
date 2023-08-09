@@ -97,7 +97,6 @@ func (mgr *CrossrefMetadataManager) generateCrossrefMetadataIndex() error {
 		}
 	}
 
-	fmt.Print("Writing index file\n")
 	f, err := os.Create(mgr.getIndexFileName())
 	if err != nil {
 		return err
@@ -130,11 +129,12 @@ func (mgr *CrossrefMetadataManager) generateCrossrefMetadataIndex() error {
 		wg.Wait()
 		close(results)
 		close(errors)
+		fmt.Print("All go routines finished\n")
 		finish <- true
 	}()
 
 	var counter int = 0
-out:
+	var isDone bool = false
 	for {
 		var result *CrossrefMetadataIndex
 		select {
@@ -151,16 +151,18 @@ out:
 		case err = <-errors:
 			return err
 		case <-finish:
-			break out
+			isDone = true
 		}
-
+		if isDone {
+			break
+		}
 	}
 
-	//Will be run when both channels closed (after waitGroup)
-	fmt.Print("Finished writing index file\n")
+	fmt.Print("Start writing index file\n")
 	s.Flush()
 	f.Sync()
 	f.Close()
+	fmt.Print("Finished writing index file\n")
 
 	return nil
 }
