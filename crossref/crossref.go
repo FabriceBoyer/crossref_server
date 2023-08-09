@@ -43,6 +43,14 @@ type CrossrefMetadataList struct {
 	Items []CrossrefMetadata `json:"items"`
 }
 
+func (l *CrossrefMetadataList) GetDoisList() (*[]string, error) {
+	var dois []string
+	for _, item := range l.Items {
+		dois = append(dois, item.DOI)
+	}
+	return &dois, nil
+}
+
 func (m *CrossrefMetadata) String() string {
 	jsonBytes, err := json.MarshalIndent(m, "", "  ")
 	if err != nil {
@@ -84,17 +92,9 @@ func (mgr *CrossrefMetadataManager) InitializeManager() error {
 func (mgr *CrossrefMetadataManager) generateCrossrefMetadataIndex() error {
 	fmt.Print("Generating index file\n")
 
-	files, err := os.ReadDir(mgr.Root_path)
+	filesToBeProcessed, err := mgr.getFilesList()
 	if err != nil {
 		return err
-	}
-
-	filesToBeProcessed := []string{}
-	for _, file := range files {
-		fileName := file.Name()
-		if strings.HasSuffix(fileName, ".json.gz") {
-			filesToBeProcessed = append(filesToBeProcessed, fileName)
-		}
 	}
 
 	f, err := os.Create(mgr.getIndexFileName())
@@ -111,7 +111,7 @@ func (mgr *CrossrefMetadataManager) generateCrossrefMetadataIndex() error {
 	results := make(chan *CrossrefMetadataIndex, 1e6*routineCount)
 	errors := make(chan error)
 	finish := make(chan bool)
-	fileCount := len(filesToBeProcessed)
+	fileCount := len(*filesToBeProcessed)
 	fileBlockSize := fileCount/routineCount + 1
 
 	var wg sync.WaitGroup
@@ -123,7 +123,7 @@ func (mgr *CrossrefMetadataManager) generateCrossrefMetadataIndex() error {
 		start := i * fileBlockSize
 		end := utils.Min(fileCount, (i+1)*fileBlockSize-1)
 		fmt.Printf("Starting go routine %d from %d to %d\n", i, start, end)
-		go mgr.generatePartialCrossrefMetadataIndex(i, &wg, filesToBeProcessed[start:end], results, errors)
+		go mgr.generatePartialCrossrefMetadataIndex(i, &wg, (*filesToBeProcessed)[start:end], results, errors)
 	}
 	go func() {
 		wg.Wait()
@@ -167,6 +167,23 @@ func (mgr *CrossrefMetadataManager) generateCrossrefMetadataIndex() error {
 	return nil
 }
 
+func (mgr *CrossrefMetadataManager) getFilesList() (*[]string, error) {
+	files, err := os.ReadDir(mgr.Root_path)
+	if err != nil {
+		return nil, err
+	}
+
+	filesToBeProcessed := []string{}
+	for _, file := range files {
+		fileName := file.Name()
+		if strings.HasSuffix(fileName, ".json.gz") {
+			filesToBeProcessed = append(filesToBeProcessed, fileName)
+		}
+	}
+
+	return &filesToBeProcessed, nil
+}
+
 func (mgr *CrossrefMetadataManager) generatePartialCrossrefMetadataIndex(routineId int, wg *sync.WaitGroup,
 	files []string,
 	results chan<- *CrossrefMetadataIndex, errors chan<- error) {
@@ -177,9 +194,7 @@ func (mgr *CrossrefMetadataManager) generatePartialCrossrefMetadataIndex(routine
 
 	for _, fileName := range files {
 
-		fileNameWithoutExt := strings.ReplaceAll(fileName, ".json.gz", "")
-
-		fileId, err := strconv.Atoi(fileNameWithoutExt)
+		fileId, err := mgr.getFileIdFromFileName(fileName)
 		if err != nil {
 			errors <- err
 		}
@@ -219,22 +234,40 @@ func (mgr *CrossrefMetadataManager) generatePartialCrossrefMetadataIndex(routine
 	fmt.Printf("Routine %d finished with %s elements parsed\n", routineId, humanize.SI(float64(counter), ""))
 }
 
-func (mgr *CrossrefMetadataManager) GetIndexedCrossrefMetadata(doi string) (*CrossrefMetadata, error) {
+func (*CrossrefMetadataManager) getFileIdFromFileName(fileName string) (int, error) {
+	fileNameWithoutExt := strings.ReplaceAll(fileName, ".json.gz", "")
+
+	fileId, err := strconv.Atoi(fileNameWithoutExt)
+	if err != nil {
+		return -1, err
+	}
+	return fileId, nil
+}
+
+func (mgr *CrossrefMetadataManager) getFileIdFromDoi(doi string) (int, error) {
 	if mgr.Collection == nil {
-		return nil, fmt.Errorf("store is not initialized")
+		return -1, fmt.Errorf("store is not initialized")
 	}
 
 	fileIdStr, err := mgr.Collection.Get([]byte(doi))
 	if err != nil {
-		return nil, err
+		return -1, err
 	}
 
 	fileId, err := strconv.Atoi(string(fileIdStr))
 	if err != nil {
+		return -0, err
+	}
+	return fileId, nil
+}
+
+func (mgr *CrossrefMetadataManager) GetIndexedCrossrefMetadata(doi string) (*CrossrefMetadata, error) {
+	fileId, err := mgr.getFileIdFromDoi(doi)
+	if err != nil {
 		return nil, err
 	}
 
-	res, err := mgr.getCrossrefMetadaFromFileId(fileId, doi)
+	res, err := mgr.getCrossrefMetadaFromFileIdAndDoi(fileId, doi)
 	if err != nil {
 		return nil, err
 	}
@@ -242,7 +275,7 @@ func (mgr *CrossrefMetadataManager) GetIndexedCrossrefMetadata(doi string) (*Cro
 	return res, nil
 }
 
-func (mgr *CrossrefMetadataManager) getCrossrefMetadaFromFileId(fileId int, doi string) (*CrossrefMetadata, error) {
+func (mgr *CrossrefMetadataManager) getCrossrefMetadaListFromFileId(fileId int) (*CrossrefMetadataList, error) {
 	fileName := fmt.Sprintf("%d.json.gz", fileId)
 
 	f, err := os.Open(path.Join(mgr.Root_path, fileName))
@@ -262,6 +295,16 @@ func (mgr *CrossrefMetadataManager) getCrossrefMetadaFromFileId(fileId int, doi 
 	d := json.NewDecoder(gzipReader)
 	metaDataList := &CrossrefMetadataList{}
 	err = d.Decode(metaDataList)
+	if err != nil {
+		return nil, err
+	}
+
+	return metaDataList, nil
+}
+
+func (mgr *CrossrefMetadataManager) getCrossrefMetadaFromFileIdAndDoi(fileId int, doi string) (*CrossrefMetadata, error) {
+
+	metaDataList, err := mgr.getCrossrefMetadaListFromFileId(fileId)
 	if err != nil {
 		return nil, err
 	}
@@ -297,4 +340,36 @@ func (mgr *CrossrefMetadataManager) readCrossrefMetadataIndex() error {
 	}
 
 	return nil
+}
+
+func (mgr *CrossrefMetadataManager) GetRandomDOIList(archiveFileCount int, doisPerArchive int) (*[]string, error) {
+
+	files, err := mgr.getFilesList()
+	if err != nil {
+		return nil, err
+	}
+
+	randFiles := utils.GetRandomSample(*files, archiveFileCount)
+
+	res := []string{}
+	for _, file := range randFiles {
+		fileId, err := mgr.getFileIdFromFileName(file)
+		if err != nil {
+			return nil, err
+		}
+
+		list, err := mgr.getCrossrefMetadaListFromFileId(fileId)
+		if err != nil {
+			return nil, err
+		}
+
+		dois, err := list.GetDoisList()
+		if err != nil {
+			return nil, err
+		}
+
+		res = append(res, utils.GetRandomSample(*dois, doisPerArchive)...)
+	}
+
+	return &res, nil
 }

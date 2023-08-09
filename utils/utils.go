@@ -2,8 +2,10 @@ package utils
 
 import (
 	"fmt"
+	"math/rand"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/pkg/errors"
 	"golang.org/x/exp/constraints"
@@ -49,4 +51,13 @@ func FileExists(filename string) bool {
 		return false
 	}
 	return !info.IsDir()
+}
+
+func GetRandomSample(s []string, n int) []string {
+	rand.Seed(time.Now().UnixNano())
+	if n > len(s) {
+		n = len(s) - 1
+	}
+	rand.Shuffle(len(s), func(i, j int) { s[i], s[j] = s[j], s[i] })
+	return s[:n]
 }

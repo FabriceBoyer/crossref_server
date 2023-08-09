@@ -38,3 +38,100 @@ func TestGetIndexedCrossrefMetadata(t *testing.T) {
 	assert.Contains(t, elm.Author[0].Family, "Kartsan")
 	fmt.Printf("%v\n", string(val))
 }
+
+func TestGetCrossrefMetadaListFromFileId(t *testing.T) {
+	mgr := newCrossrefManager()
+	err := mgr.InitializeManager()
+	if err != nil {
+		t.Error(err)
+	}
+
+	list, err := mgr.getCrossrefMetadaListFromFileId(10)
+	if err != nil {
+		t.Error(err)
+	}
+
+	fmt.Print(list.Items)
+
+	assert.Greater(t, len(list.Items), 0)
+}
+
+func BenchmarkGetIndexedCrossrefMetadata(b *testing.B) {
+	mgr := newCrossrefManager()
+	err := mgr.InitializeManager()
+	if err != nil {
+		b.Error(err)
+	}
+
+	dois, err := mgr.GetRandomDOIList(5, 100)
+	if err != nil {
+		b.Error(err)
+	}
+
+	b.Logf("Generated %d random dois\n", len(*dois))
+
+	for _, doi := range *dois {
+		elm, err := mgr.GetIndexedCrossrefMetadata(doi)
+		if err != nil {
+			b.Error(err)
+		}
+		b.Logf("%s\n", doi)
+		assert.Equal(b, elm.DOI, doi)
+	}
+}
+
+func TestGetFileIdFromDoi(t *testing.T) {
+	mgr := newCrossrefManager()
+	err := mgr.InitializeManager()
+	if err != nil {
+		t.Error(err)
+	}
+
+	dois, err := mgr.GetRandomDOIList(5, 5)
+	if err != nil {
+		t.Error(err)
+	}
+
+	t.Logf("Generated %d random dois\n", len(*dois))
+
+	for _, doi := range *dois {
+		fileId, err := mgr.getFileIdFromDoi(doi)
+		if err != nil {
+			t.Error(err)
+		}
+		t.Logf("%d\n", fileId)
+	}
+
+}
+
+func TestGetFilesList(t *testing.T) {
+	mgr := newCrossrefManager()
+	//no need to initialize
+
+	files, err := mgr.getFilesList()
+	if err != nil {
+		t.Error(err)
+	}
+
+	for _, file := range (*files)[:100] {
+		fmt.Println(file)
+	}
+
+	assert.Greater(t, len(*files), 0)
+}
+
+func TestGetRandomDOIList(t *testing.T) {
+	mgr := newCrossrefManager()
+	// no need to initialize
+
+	list, err := mgr.GetRandomDOIList(5, 100)
+	if err != nil {
+		t.Error(err)
+	}
+
+	assert.Equal(t, len(*list), 500)
+
+	for _, doi := range (*list)[:50] {
+		fmt.Println(doi)
+	}
+}
