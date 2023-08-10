@@ -46,7 +46,12 @@ type CrossrefMetadataList struct {
 func (l *CrossrefMetadataList) GetDoisList() (*[]string, error) {
 	var dois []string
 	for _, item := range l.Items {
-		dois = append(dois, item.DOI)
+		if item.DOI != "" {
+			dois = append(dois, item.DOI)
+		} else {
+			return nil, fmt.Errorf("empty DOI found in %v", item)
+		}
+
 	}
 	return &dois, nil
 }

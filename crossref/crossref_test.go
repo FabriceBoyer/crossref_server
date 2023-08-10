@@ -87,7 +87,7 @@ func TestGetFileIdFromDoi(t *testing.T) {
 		t.Error(err)
 	}
 
-	dois, err := mgr.GetRandomDOIList(5, 5)
+	dois, err := mgr.GetRandomDOIList(5, 500)
 	if err != nil {
 		t.Error(err)
 	}
