@@ -1,8 +1,8 @@
 package crossref
 
 import (
+	"common_go_utils/utils"
 	"compress/gzip"
-	"crossref_server/utils"
 	"encoding/json"
 	"fmt"
 	"os"

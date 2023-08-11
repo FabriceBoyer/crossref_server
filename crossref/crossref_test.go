@@ -1,7 +1,7 @@
 package crossref
 
 import (
-	"crossref_server/utils"
+	"common_go_utils/utils"
 	"encoding/json"
 	"fmt"
 	"testing"
