@@ -1,10 +1,11 @@
 package crossref
 
 import (
-	"common_go_utils/utils"
 	"encoding/json"
 	"fmt"
 	"testing"
+
+	"github.com/fabriceboyer/common_go_utils/utils"
 
 	"github.com/stretchr/testify/assert"
 )

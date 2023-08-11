@@ -1,7 +1,6 @@
 package crossref
 
 import (
-	"common_go_utils/utils"
 	"compress/gzip"
 	"encoding/json"
 	"fmt"
@@ -11,6 +10,8 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+
+	"github.com/fabriceboyer/common_go_utils/utils"
 
 	"github.com/dustin/go-humanize"
 	"github.com/steveyen/gkvlite"

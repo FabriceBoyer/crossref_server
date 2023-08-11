@@ -6,8 +6,9 @@ import (
 	"log"
 	"net/http"
 
-	"common_go_utils/utils"
 	"crossref_server/crossref"
+
+	"github.com/fabriceboyer/common_go_utils/utils"
 
 	"github.com/gorilla/mux"
 )
