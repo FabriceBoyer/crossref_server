@@ -1,4 +1,4 @@
-module crossref_server
+module github.com/fabriceboyer/crossref_server
 
 go 1.21
 

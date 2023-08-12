@@ -6,7 +6,7 @@ import (
 	"log"
 	"net/http"
 
-	"crossref_server/crossref"
+	"github.com/fabriceboyer/crossref_server/crossref"
 
 	"github.com/fabriceboyer/common_go_utils/utils"
 
