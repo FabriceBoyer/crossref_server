@@ -12,4 +12,5 @@ services:
             - DUMP_PATH=/dump
         volumes:
             - $DUMP_PATH:/dump
+            # - ./static:/static
 
