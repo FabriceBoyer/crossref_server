@@ -6,19 +6,25 @@ import (
 	"log"
 	"net/http"
 
-	"github.com/fabriceboyer/crossref_server/crossref"
-
 	"github.com/fabriceboyer/common_go_utils/utils"
-
+	"github.com/fabriceboyer/crossref_server/crossref"
 	"github.com/gorilla/mux"
+	"github.com/spf13/viper"
 )
 
-var root_path = utils.GetEnv("DUMP_PATH", "E:/data/crossref_dump/2023")
-
-var mgr = crossref.CrossrefMetadataManager{Root_path: root_path}
+var mgr = crossref.CrossrefMetadataManager{}
 
 func main() {
-	err := mgr.InitializeManager()
+	err := utils.SetupConfig()
+	if err != nil {
+		panic(err)
+	}
+
+	rootPath := viper.GetString("DUMP_PATH")
+	mgr.Root_path = rootPath
+	fmt.Printf("Root path: %s\n", rootPath)
+
+	err = mgr.InitializeManager()
 	if err != nil {
 		panic(err)
 	}

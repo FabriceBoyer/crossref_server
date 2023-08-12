@@ -6,12 +6,13 @@ import (
 	"testing"
 
 	"github.com/fabriceboyer/common_go_utils/utils"
-
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
 
 func newCrossrefManager() CrossrefMetadataManager {
-	return CrossrefMetadataManager{Root_path: utils.GetEnv("DUMP_PATH", "E:/data/crossref_dump/2023")}
+	utils.SetupConfig()
+	return CrossrefMetadataManager{Root_path: viper.GetString("DUMP_PATH")}
 }
 
 func BenchmarkGenerateCrossrefMetadataIndex(b *testing.B) {
