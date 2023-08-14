@@ -86,9 +86,10 @@ func (mgr *CrossrefMetadataManager) InitializeManager() error {
 		if err := mgr.generateCrossrefMetadataIndex(); err != nil {
 			return err
 		}
-	} else {
-		fmt.Print("Reusing existing file index\n")
 	}
+	// else {
+	// 	fmt.Print("Reusing existing file index\n")
+	// }
 	if err := mgr.readCrossrefMetadataIndex(); err != nil {
 		return err
 	}
