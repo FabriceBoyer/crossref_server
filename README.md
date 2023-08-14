@@ -10,14 +10,18 @@ Minimal Crossref metadata API server using local dumps
 
 Use a recent Linux distribution
 
+Install Git version control CLI
+
 [Install recent docker CE engine](https://docs.docker.com/engine/install/)
 
 
 ## Configuration
 
+Clone this repository
+
 Copy `.env.example` and rename it to `.env`
 
-Modify values as required to store dump files in appropriate location
+Modify values as required in `.env` to store dump files in appropriate location
 
 
 ## Download data
