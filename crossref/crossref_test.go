@@ -37,8 +37,9 @@ func TestGetIndexedCrossrefMetadata(t *testing.T) {
 	if err != nil {
 		t.Error(err)
 	}
+	//fmt.Printf("%v\n", string(val))
+	assert.NotEmpty(t, val)
 	assert.Contains(t, elm.Author[0].Family, "Kartsan")
-	fmt.Printf("%v\n", string(val))
 }
 
 func TestGetCrossrefMetadaListFromFileId(t *testing.T) {
@@ -53,7 +54,7 @@ func TestGetCrossrefMetadaListFromFileId(t *testing.T) {
 		t.Error(err)
 	}
 
-	fmt.Print(list.Items)
+	//fmt.Print(list.Items)
 
 	assert.Greater(t, len(list.Items), 0)
 }
