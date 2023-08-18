@@ -44,7 +44,7 @@ type CrossrefMetadataList struct {
 	Items []CrossrefMetadata `json:"items"`
 }
 
-func (l *CrossrefMetadataList) GetDoisList() (*[]string, error) {
+func (l *CrossrefMetadataList) GetDoisList() ([]string, error) {
 	var dois []string
 	for _, item := range l.Items {
 		if item.DOI != "" {
@@ -54,7 +54,7 @@ func (l *CrossrefMetadataList) GetDoisList() (*[]string, error) {
 		}
 
 	}
-	return &dois, nil
+	return dois, nil
 }
 
 func (m *CrossrefMetadata) String() string {
@@ -118,7 +118,7 @@ func (mgr *CrossrefMetadataManager) generateCrossrefMetadataIndex() error {
 	results := make(chan *CrossrefMetadataIndex, 1e6*routineCount)
 	errors := make(chan error)
 	finish := make(chan bool)
-	fileCount := len(*filesToBeProcessed)
+	fileCount := len(filesToBeProcessed)
 	fileBlockSize := fileCount/routineCount + 1
 
 	var wg sync.WaitGroup
@@ -130,7 +130,7 @@ func (mgr *CrossrefMetadataManager) generateCrossrefMetadataIndex() error {
 		start := i * fileBlockSize
 		end := utils.Min(fileCount, (i+1)*fileBlockSize-1)
 		fmt.Printf("Starting go routine %d from %d to %d\n", i, start, end)
-		go mgr.generatePartialCrossrefMetadataIndex(i, &wg, (*filesToBeProcessed)[start:end], results, errors)
+		go mgr.generatePartialCrossrefMetadataIndex(i, &wg, (filesToBeProcessed)[start:end], results, errors)
 	}
 	go func() {
 		wg.Wait()
@@ -174,7 +174,7 @@ func (mgr *CrossrefMetadataManager) generateCrossrefMetadataIndex() error {
 	return nil
 }
 
-func (mgr *CrossrefMetadataManager) getFilesList() (*[]string, error) {
+func (mgr *CrossrefMetadataManager) getFilesList() ([]string, error) {
 	files, err := os.ReadDir(mgr.Root_path)
 	if err != nil {
 		return nil, err
@@ -188,7 +188,7 @@ func (mgr *CrossrefMetadataManager) getFilesList() (*[]string, error) {
 		}
 	}
 
-	return &filesToBeProcessed, nil
+	return filesToBeProcessed, nil
 }
 
 func (mgr *CrossrefMetadataManager) generatePartialCrossrefMetadataIndex(routineId int, wg *sync.WaitGroup,
@@ -349,14 +349,14 @@ func (mgr *CrossrefMetadataManager) readCrossrefMetadataIndex() error {
 	return nil
 }
 
-func (mgr *CrossrefMetadataManager) GetRandomDOIList(archiveFileCount int, doisPerArchive int) (*[]string, error) {
+func (mgr *CrossrefMetadataManager) GetRandomDOIList(archiveFileCount int, doisPerArchive int) ([]string, error) {
 
 	files, err := mgr.getFilesList()
 	if err != nil {
 		return nil, err
 	}
 
-	randFiles := utils.GetRandomSample(*files, archiveFileCount)
+	randFiles := utils.GetRandomSample(files, archiveFileCount)
 
 	res := []string{}
 	for _, file := range randFiles {
@@ -375,8 +375,8 @@ func (mgr *CrossrefMetadataManager) GetRandomDOIList(archiveFileCount int, doisP
 			return nil, err
 		}
 
-		res = append(res, utils.GetRandomSample(*dois, doisPerArchive)...)
+		res = append(res, utils.GetRandomSample(dois, doisPerArchive)...)
 	}
 
-	return &res, nil
+	return res, nil
 }

@@ -71,9 +71,9 @@ func BenchmarkGetIndexedCrossrefMetadata(b *testing.B) {
 		b.Error(err)
 	}
 
-	b.Logf("Generated %d random dois\n", len(*dois))
+	b.Logf("Generated %d random dois\n", len(dois))
 
-	for _, doi := range *dois {
+	for _, doi := range dois {
 		elm, err := mgr.GetIndexedCrossrefMetadata(doi)
 		if err != nil {
 			b.Error(err)
@@ -95,9 +95,9 @@ func TestGetFileIdFromDoi(t *testing.T) {
 		t.Error(err)
 	}
 
-	t.Logf("Generated %d random dois\n", len(*dois))
+	t.Logf("Generated %d random dois\n", len(dois))
 
-	for _, doi := range *dois {
+	for _, doi := range dois {
 		fileId, err := mgr.getFileIdFromDoi(doi)
 		if err != nil {
 			t.Error(err)
@@ -116,11 +116,11 @@ func TestGetFilesList(t *testing.T) {
 		t.Error(err)
 	}
 
-	for _, file := range (*files)[:100] {
+	for _, file := range (files)[:100] {
 		fmt.Println(file)
 	}
 
-	assert.Greater(t, len(*files), 0)
+	assert.Greater(t, len(files), 0)
 }
 
 func TestGetRandomDOIList(t *testing.T) {
@@ -132,9 +132,9 @@ func TestGetRandomDOIList(t *testing.T) {
 		t.Error(err)
 	}
 
-	assert.Equal(t, len(*list), 500)
+	assert.Equal(t, len(list), 500)
 
-	for _, doi := range (*list)[:50] {
+	for _, doi := range (list)[:50] {
 		fmt.Println(doi)
 	}
 }
