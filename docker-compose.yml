@@ -7,7 +7,7 @@ services:
         container_name: crossref_server
         restart: unless-stopped
         ports:
-            - 9098:9098
+            - 127.0.0.1:9098:9098
         environment:
             - DUMP_PATH=/dump
         volumes:
