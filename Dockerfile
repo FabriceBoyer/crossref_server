@@ -1,25 +1,44 @@
 ARG GO_VERSION=1.21
+FROM golang:${GO_VERSION} AS build
+WORKDIR /src
 
-FROM golang:${GO_VERSION}-alpine as builder
+RUN --mount=type=cache,target=/go/pkg/mod/ \
+    --mount=type=bind,source=go.sum,target=go.sum \
+    --mount=type=bind,source=go.mod,target=go.mod \
+    go mod download -x
 
-WORKDIR /app
-
-COPY go.* ./
-RUN go mod download
-
-COPY *.go ./
-COPY ./crossref ./crossref
-RUN go build -v -o /crossref_server
+RUN --mount=type=cache,target=/go/pkg/mod/ \
+    --mount=type=bind,target=. \
+    CGO_ENABLED=0 go build -o /bin/server .
 
 #################################################
 
 # FROM scratch
-FROM gcr.io/distroless/static AS final
+# FROM gcr.io/distroless/static AS final
+FROM alpine:latest AS final
 
-COPY --from=builder /crossref_server /
+RUN --mount=type=cache,target=/var/cache/apk \
+    apk --update add \
+    ca-certificates \
+    tzdata \
+    && \
+    update-ca-certificates
+
+ARG UID=10001
+RUN adduser \
+    --disabled-password \
+    --gecos "" \
+    --home "/nonexistent" \
+    --shell "/sbin/nologin" \
+    --no-create-home \
+    --uid "${UID}" \
+    appuser
+USER appuser
+
+COPY --from=build /bin/server /
 COPY ./static /static
 COPY ./.env.example /.env
 
-CMD [ "/crossref_server" ]
+EXPOSE 9098
 
-
+ENTRYPOINT [ "/server" ]

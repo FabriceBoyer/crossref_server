@@ -3,7 +3,9 @@ version: '3.7'
 services:
 
     crossref_server:
-        build: .
+        build:
+            context: .
+            target: final
         container_name: crossref_server
         restart: unless-stopped
         ports:
