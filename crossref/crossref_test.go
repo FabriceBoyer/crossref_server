@@ -11,7 +11,7 @@ import (
 )
 
 func newCrossrefManager() CrossrefMetadataManager {
-	utils.SetupConfig()
+	utils.SetupTestConfig()
 	return CrossrefMetadataManager{Root_path: viper.GetString("DUMP_PATH")}
 }
 
