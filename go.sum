@@ -5,8 +5,8 @@ github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/dustin/go-humanize v1.0.1 h1:GzkhY7T5VNhEkwH0PVJgjz+fX1rhBrR7pRT3mDkpeCY=
 github.com/dustin/go-humanize v1.0.1/go.mod h1:Mu1zIs6XwVuF/gI1OepvI0qD18qycQx+mFykh5fBlto=
-github.com/fabriceboyer/common_go_utils v1.0.1 h1:brSyy8J2djnVYYZht3StxptNmafYcy+sQMA4GiN1SVU=
-github.com/fabriceboyer/common_go_utils v1.0.1/go.mod h1:4pcsvx+ZukhGrETgK+vqCifjGj+bNhSj0Fpo5Etg/tA=
+github.com/fabriceboyer/common_go_utils v1.0.2 h1:9m9leH7j5O2fwMThMVkF/91iRfmqAfgWxso9rBtjgko=
+github.com/fabriceboyer/common_go_utils v1.0.2/go.mod h1:Ql9In0100eyD8nEB/DII35s5M/m8WUoDTeIWSEZ7VZk=
 github.com/frankban/quicktest v1.14.6 h1:7Xjx+VpznH+oBnejlPUj8oUpdxnVs4f8XU8WnHkI4W8=
 github.com/frankban/quicktest v1.14.6/go.mod h1:4ptaffx2x8+WTWXmUCuVU6aPUX1/Mz7zb5vbUoiM6w0=
 github.com/fsnotify/fsnotify v1.7.0 h1:8JEhPFa5W2WU7YfeZzPNqzMP6Lwt7L2715Ggo0nosvA=
