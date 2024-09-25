@@ -132,6 +132,7 @@ func (mgr *CrossrefMetadataManager) generateCrossrefMetadataIndex() error {
 		fmt.Printf("Starting go routine %d from %d to %d\n", i, start, end)
 		go mgr.generatePartialCrossrefMetadataIndex(i, &wg, (filesToBeProcessed)[start:end], results, errors)
 	}
+	//TODO replace with errgroup
 	go func() {
 		wg.Wait()
 		close(results)
